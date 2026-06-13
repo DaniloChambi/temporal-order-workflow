@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+lib/
+dist/
+
+# Temporal local state
+.temporal/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

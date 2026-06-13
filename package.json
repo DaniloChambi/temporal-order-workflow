@@ -1,0 +1,23 @@
+{
+  "name": "temporal-order-workflow",
+  "version": "1.0.0",
+  "description": "Ejemplo de workflow de procesamiento de pedidos con Temporal.io",
+  "scripts": {
+    "build": "tsc --build",
+    "worker": "ts-node --project tsconfig.json src/worker.ts",
+    "start": "ts-node --project tsconfig.json src/client.ts",
+    "start:cancel": "ts-node --project tsconfig.json src/client.ts --cancel",
+    "start:query": "ts-node --project tsconfig.json src/client.ts --query"
+  },
+  "dependencies": {
+    "@temporalio/activity": "^1.10.0",
+    "@temporalio/client": "^1.10.0",
+    "@temporalio/worker": "^1.10.0",
+    "@temporalio/workflow": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}
