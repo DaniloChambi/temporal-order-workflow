@@ -1,0 +1,133 @@
+version: "3.8"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Temporal.io — Order Processing Workflow
+# Stack completo para Dokploy:
+#   - PostgreSQL       (persistencia de Temporal)
+#   - temporal-setup   (inicializa el schema de la DB, corre una sola vez)
+#   - temporal         (servidor Temporal — frontend, history, matching, worker)
+#   - temporal-ui      (Web UI en el puerto 8080)
+#   - worker           (tu aplicación: el Temporal Worker)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Base de datos ────────────────────────────────────────────────────────────
+  postgresql:
+    image: postgres:16-alpine
+    container_name: temporal-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-temporal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-temporal}
+      POSTGRES_DB: ${POSTGRES_DB:-temporal}
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    networks:
+      - temporal-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-temporal}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Setup inicial de Temporal (corre una sola vez y termina) ──────────────────
+  temporal-setup:
+    image: temporalio/auto-setup:1.25.2
+    container_name: temporal-setup
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-temporal}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-temporal}
+      POSTGRES_SEEDS: postgresql
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes:
+      - ./temporal-config:/etc/temporal/config/dynamicconfig
+    networks:
+      - temporal-network
+
+  # ── Servidor Temporal ──────────────────────────────────────────────────────
+  temporal:
+    image: temporalio/server:1.25.2
+    container_name: temporal-server
+    restart: unless-stopped
+    depends_on:
+      temporal-setup:
+        condition: service_completed_successfully
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-temporal}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-temporal}
+      POSTGRES_SEEDS: postgresql
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      TEMPORAL_BROADCAST_ADDRESS: ${TEMPORAL_BROADCAST_ADDRESS:-temporal}
+    volumes:
+      - ./temporal-config:/etc/temporal/config/dynamicconfig
+    ports:
+      - "7233:7233"   # gRPC (Workers se conectan aquí)
+    networks:
+      - temporal-network
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Web UI de Temporal ─────────────────────────────────────────────────────
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    container_name: temporal-ui
+    restart: unless-stopped
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: ${TEMPORAL_UI_CORS:-http://localhost:8080}
+    ports:
+      - "8080:8080"   # Web UI (exponer via Dokploy con dominio + SSL)
+    networks:
+      - temporal-network
+
+  # ── Tu Worker (la aplicación) ──────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: temporal-order-workflow-worker:latest
+    container_name: temporal-worker
+    restart: unless-stopped
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: order-processing
+      NODE_ENV: production
+    networks:
+      - temporal-network
+    # Escalar workers horizontalmente: docker compose up --scale worker=3
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+volumes:
+  postgresql_data:
+    driver: local
+
+networks:
+  temporal-network:
+    driver: bridge

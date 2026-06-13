@@ -15,22 +15,26 @@ import * as PaymentActivities from './activities/payment.activities';
 import * as NotificationActivities from './activities/notification.activities';
 
 // El nombre de la cola de tareas debe coincidir con el que usa el cliente
-export const TASK_QUEUE = 'order-processing';
+export const TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? 'order-processing';
+
+// Leer configuración desde variables de entorno (con fallback a localhost para dev local)
+const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? 'localhost:7233';
+const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? 'default';
 
 async function run(): Promise<void> {
   console.log('🔧 Iniciando Temporal Worker...');
-  console.log(`   Task Queue: ${TASK_QUEUE}`);
-  console.log('   Temporal Server: localhost:7233\n');
+  console.log(`   Task Queue:      ${TASK_QUEUE}`);
+  console.log(`   Temporal Server: ${TEMPORAL_ADDRESS}`);
+  console.log(`   Namespace:       ${TEMPORAL_NAMESPACE}\n`);
 
   // Crear conexión al servidor de Temporal
-  // Por defecto conecta a localhost:7233 (Temporal Dev Server)
   const connection = await NativeConnection.connect({
-    address: 'localhost:7233',
+    address: TEMPORAL_ADDRESS,
   });
 
   const worker = await Worker.create({
     connection,
-    namespace: 'default',
+    namespace: TEMPORAL_NAMESPACE,
     taskQueue: TASK_QUEUE,
 
     // Apuntar al archivo del workflow (Temporal lo ejecuta en un sandbox V8)

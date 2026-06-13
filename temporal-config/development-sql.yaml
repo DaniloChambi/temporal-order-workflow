@@ -1,0 +1,37 @@
+# Configuración dinámica de Temporal para desarrollo/producción con SQL
+# Ref: https://docs.temporal.io/references/dynamic-configuration
+
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+
+limit.maxIDLength:
+  - value: 255
+
+frontend.enableClientVersionCheck:
+  - value: true
+
+history.persistenceMaxQPS:
+  - value: 3000
+
+frontend.persistenceMaxQPS:
+  - value: 3000
+
+frontend.historyMgrNumConns:
+  - value: 10
+
+history.historyMgrNumConns:
+  - value: 50
+
+history.defaultActivityRetryPolicy:
+  - value:
+      InitialIntervalInSeconds: 1
+      MaximumIntervalCoefficient: 100
+      BackoffCoefficient: 2.0
+      MaximumAttempts: 3
+
+history.defaultWorkflowRetryPolicy:
+  - value:
+      InitialIntervalInSeconds: 1
+      MaximumIntervalCoefficient: 100
+      BackoffCoefficient: 2.0
+      MaximumAttempts: 0   # 0 = sin límite (el workflow no se reintenta automáticamente)
